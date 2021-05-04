@@ -1,6 +1,6 @@
 # cowin
 
-`cowin.py` books appointment as soon as a slot is found. **_This will book the first available slot in the first available center in your pincode_**.
+`cowin.py` books appointment as soon as a slot is found. **_This will book the first available slot in the first available center in your pincode. This considers free vaccines only._**.
 
 Steps:
 1. Update _NUMBER, NAME, DOSE, MIN_AGE_LIMIT, PINCODE_ at the bottom of the file before running this. Instructions are provided on how to update it.
