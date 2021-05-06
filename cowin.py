@@ -45,7 +45,8 @@ def public_request_header():
 def update_token():
     data = {
         "mobile": int(NUMBER),
-        "secret": "U2FsdGVkX1/cvoue2qat3566bxHk79jZlZiy25mf+APCgU9rVOi7mNhAdg3BQfLOWDBsLxU+3VRVX/ZrTO/v9w=="
+        # "secret": "U2FsdGVkX1/cvoue2qat3566bxHk79jZlZiy25mf+APCgU9rVOi7mNhAdg3BQfLOWDBsLxU+3VRVX/ZrTO/v9w=="
+        "secret": "U2FsdGVkX1/36L9pmOjvT9PNfjf21XQhOFH3T6tEikNJCtzvh7N0JOTBguSBTgiQTkTi4z6IBlKpTwbj43SCSA=="
     }
 
     response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data,
