@@ -147,7 +147,7 @@ def run():
 
 
 if __name__ == '__main__':
-    NUMBER = "enter-your-number"  # Enter phone number registered in cowin
+    NUMBER = "enter-your-10-digit-number"  # Enter phone number registered in cowin
     NAME = "enter-your-name"  # Enter the name that was registered in cowin
     DOSE = 1  # first or second dose
     MIN_AGE_LIMIT = 18  # Enter age limit - 18 or 45
