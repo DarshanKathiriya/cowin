@@ -9,6 +9,7 @@ import requests
 
 
 def get_calendar():
+
     response = requests.get(
         f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin?pincode={PINCODE}&date={date.today().strftime('%d-%m-%Y')}")
 
@@ -29,14 +30,17 @@ def display_message(center):
 
 
 def request_header():
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "user-agent": USER_AGENT
+    }
 
 
 def update_token():
     data = {
         "mobile": int(NUMBER),
         "secret": "U2FsdGVkX1/cvoue2qat3566bxHk79jZlZiy25mf+APCgU9rVOi7mNhAdg3BQfLOWDBsLxU+3VRVX/ZrTO/v9w==",
-        "user-agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:77.0) Gecko/20190101 Firefox/77.0"
+        "user-agent": USER_AGENT
     }
 
     response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data)
@@ -152,5 +156,6 @@ if __name__ == '__main__':
     TIME_PERIOD = 10  # Check for slots every N seconds, recommended = 10, do not update
 
     token = ""  # Advanced use only, ignore this
+    USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:77.0) Gecko/20190101 Firefox/77.0"
 
     run()
