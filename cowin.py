@@ -9,6 +9,7 @@ import requests
 
 
 def get_calendar():
+
     response = requests.get(
         f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin?pincode={PINCODE}&date={date.today().strftime('%d-%m-%Y')}")
 
@@ -29,7 +30,10 @@ def display_message(center):
 
 
 def request_header():
-    return {"Authorization": f"Bearer {token}"}
+    return {
+        "Authorization": f"Bearer {token}",
+        "user-agent": USER_AGENT
+    }
 
 
 def update_token():
@@ -143,7 +147,7 @@ def run():
 
 
 if __name__ == '__main__':
-    NUMBER = "enter-your-10-digit-number"  # Enter phone number registered in cowin
+    NUMBER = "Darshan Kathiriya"  # Enter phone number registered in cowin
     NAME = "enter-your-name"  # Enter the name that was registered in cowin
     DOSE = 1  # first or second dose
     MIN_AGE_LIMIT = 18  # Enter age limit - 18 or 45
@@ -152,5 +156,6 @@ if __name__ == '__main__':
     TIME_PERIOD = 10  # Check for slots every N seconds, recommended = 10, do not update
 
     token = ""  # Advanced use only, ignore this
+    USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:77.0) Gecko/20190101 Firefox/77.0"
 
     run()
