@@ -40,7 +40,7 @@ def update_token():
     data = {
         "mobile": int(NUMBER),
         "secret": "U2FsdGVkX1/cvoue2qat3566bxHk79jZlZiy25mf+APCgU9rVOi7mNhAdg3BQfLOWDBsLxU+3VRVX/ZrTO/v9w==",
-        "user-agent": "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:77.0) Gecko/20190101 Firefox/77.0"
+        "user-agent": USER_AGENT
     }
 
     response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data)
@@ -147,7 +147,7 @@ def run():
 
 
 if __name__ == '__main__':
-    NUMBER = "Darshan Kathiriya"  # Enter phone number registered in cowin
+    NUMBER = "enter-your-number"  # Enter phone number registered in cowin
     NAME = "enter-your-name"  # Enter the name that was registered in cowin
     DOSE = 1  # first or second dose
     MIN_AGE_LIMIT = 18  # Enter age limit - 18 or 45
