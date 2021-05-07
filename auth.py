@@ -38,8 +38,8 @@ class DataContext:
         self.phone_no = phone_no
         self.name = name
         self.dose_no = dose_no
-        self.state_name = state_name
-        self.district_name = district_name
+        self.state_name = str(state_name).lower()
+        self.district_name = str(district_name).lower()
         self.pin_code = pin_code
         self.age_category = age_category
         self.wanna_book_appointment = wanna_book_appointment
@@ -52,6 +52,10 @@ class DataContext:
 
     def set_district_id(self, district_id):
         self.district_id = district_id
+
+    def reset_district_details(self):
+        self.state_id = None
+        self.district_id = None
 
     def set_state_id(self, state_id):
         self.state_id = state_id
@@ -70,6 +74,9 @@ class DataContext:
 
     def reset_scouring_counter(self):
         self.__exploring_counter = 0
+
+    def get_area_ids(self):
+        return self.district_id if self.scouring_mechanism == ScourAt.DISTRICT_LEVEL else self.pin_code
 
 
 class Configuration:

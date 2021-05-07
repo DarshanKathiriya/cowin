@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 
-from auth import Configuration, DataContext
+from auth import Configuration, DataContext, ScourAt
 from slots import AppointmentSeekerFactory
 
 
@@ -14,6 +14,7 @@ def run():
                                pin_code=PINCODE,
                                age_category=MIN_AGE_LIMIT,
                                wanna_book_appointment=WANNA_BOOK_APPOINTMENT)
+    data_context.set_scouring_mechanism(ScourAt.DISTRICT_LEVEL)
 
     while True:
 

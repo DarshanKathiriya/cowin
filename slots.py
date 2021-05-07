@@ -17,7 +17,7 @@ class CalendarFetcher:
     def __init__(self, context: DataContext):
         self.__data_context = context
 
-    def get_url(self):
+    def build_calendar_url(self, for_area_id):
         data_fetching_mode = self.__data_context.scouring_mechanism
         url_fetcher = {
             ScourAt.PIN_CODE_LEVEL: f"{Configuration.SERVER_BASE_URL}/appointment/sessions/calendarByPin",
@@ -26,23 +26,31 @@ class CalendarFetcher:
         self.__base_url = url_fetcher[data_fetching_mode]
 
         params_fetcher = {
-            ScourAt.PIN_CODE_LEVEL: f"?pincode={self.__data_context.pin_code}",
-            ScourAt.DISTRICT_LEVEL: f"?district_id={self.__data_context.district_id}"
+            ScourAt.PIN_CODE_LEVEL: f"?pincode={for_area_id}",
+            ScourAt.DISTRICT_LEVEL: f"?district_id={for_area_id}"
         }
         query_params = params_fetcher[data_fetching_mode]
         return f"{self.__base_url}?{query_params}&date={date.today().strftime('%d-%m-%Y')}"
+
+    def get_calendar_url(self):
+        data_fetching_mode = self.__data_context.scouring_mechanism
+        if data_fetching_mode == ScourAt.DISTRICT_LEVEL:
+            self.fill_district_details()
+
+        for_area_id = self.__data_context.get_area_ids()
+        return self.build_calendar_url(for_area_id)
 
     def get_calender(self):
         if self.__data_context.get_scouring_counter() >= Configuration.MAX_AREA_EXPLORING_RETRIES:
             self.change_scouring_mechanism()
 
-        response = requests.get(self.get_url(), headers=Configuration.public_request_header(self.__data_context))
+        response = requests.get(self.get_calendar_url(), headers=Configuration.public_request_header(self.__data_context))
 
         if response.status_code != 200:
             self.__data_context.increase_scouring_counter()
-            print(
-                f"{datetime.now()} Invalid response code while finding details using {self.__data_context.scouring_mechanism.replace('_', ' ')}:"
-                f" {response.status_code}. Retrying in {Configuration.TIME_PERIOD} seconds")
+            print(f"{datetime.now()} Invalid response code while finding details using "
+                  f"{self.__data_context.scouring_mechanism.replace('_', ' ')}: {response.status_code}. "
+                  f"Retrying in {Configuration.TIME_PERIOD} seconds")
             time.sleep(Configuration.TIME_PERIOD)
             return self.get_calender()
         else:
@@ -55,6 +63,34 @@ class CalendarFetcher:
             self.__data_context.set_scouring_mechanism(ScourAt.DISTRICT_LEVEL)
         else:
             self.__data_context.set_scouring_mechanism(ScourAt.PIN_CODE_LEVEL)
+        self.__data_context.reset_scouring_counter()
+
+    def fill_district_details(self):
+        self.__data_context.reset_district_details()
+
+        self.fill_state_details()
+        district_details_url = f"{Configuration.SERVER_BASE_URL}/admin/location/districts/{self.__data_context.state_id}"
+        response = requests.get(district_details_url,
+                                headers=Configuration.public_request_header(self.__data_context))
+
+        if response.status_code == 200:
+            district_details = response.json()['districts']
+            for district_object in district_details:
+                if self.__data_context.district_name in str(district_object['district_name']).lower():
+                    self.__data_context.set_district_id(district_object['district_id'])
+
+    def fill_state_details(self):
+        state_details_url = f"{Configuration.SERVER_BASE_URL}/admin/location/states"
+        response = requests.get(state_details_url,
+                                headers=Configuration.public_request_header(self.__data_context))
+
+        if response.status_code == 200:
+            state_details = response.json()['states']
+
+            for state_object in state_details:
+                if self.__data_context.state_name in str(state_object['state_name']).lower():
+                    self.__data_context.set_state_id(state_object['state_id'])
+                    return
 
 
 class AppointmentSeeker:
