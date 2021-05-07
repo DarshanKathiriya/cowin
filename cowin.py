@@ -3,23 +3,10 @@ import time
 import tkinter as tk
 from datetime import date
 from hashlib import sha256
+from pprint import pprint
 from tkinter import messagebox
 
 import requests
-
-
-def get_calendar():
-    response = requests.get(
-        f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/public/calendarByPin?pincode={PINCODE}&date={date.today().strftime('%d-%m-%Y')}",
-        headers=public_request_header())
-
-    if response.status_code != 200:
-        print(
-            f"{datetime.datetime.now()} Invalid response code while finding by pincode: {response.status_code}. Retrying in {TIME_PERIOD} seconds")
-        time.sleep(TIME_PERIOD)
-        return get_calendar()
-
-    return response.json()
 
 
 def display_message(center):
@@ -29,131 +16,216 @@ def display_message(center):
     top.destroy()
 
 
-def authenticated_request_header():
-    return {
-        "Authorization": f"Bearer {token}",
-        "user-agent": USER_AGENT
-    }
+class Booking:
+    __wanna_book = None
+    __base_url = "https://cdn-api.co-vin.in/api/v2/appointment/schedule"
 
+    def __init__(self):
+        self.__wanna_book = Configuration.WANNA_BOOK_APPOINTMENT
 
-def public_request_header():
-    return {
-        "user-agent": USER_AGENT
-    }
+    def book_with_retry(self, booking_request):
+        if not self.__wanna_book:
+            return
 
-
-def update_token():
-    data = {
-        "mobile": int(NUMBER),
-        # "secret": "U2FsdGVkX1/cvoue2qat3566bxHk79jZlZiy25mf+APCgU9rVOi7mNhAdg3BQfLOWDBsLxU+3VRVX/ZrTO/v9w=="
-        "secret": "U2FsdGVkX1/36L9pmOjvT9PNfjf21XQhOFH3T6tEikNJCtzvh7N0JOTBguSBTgiQTkTi4z6IBlKpTwbj43SCSA=="
-    }
-
-    response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data,
-                             headers=public_request_header())
-    if response.status_code != 200:
-        raise ValueError(f"Invalid response while requesting OTP: {response.json()}")
-
-    txn_id = response.json()["txnId"]
-    display_message("Enter OTP in terminal")
-    otp = input("Enter OTP: ")
-
-    data = {"otp": sha256(str(otp).encode('utf-8')).hexdigest(), "txnId": txn_id}
-    print(f"Validating OTP..")
-
-    response = requests.post(url='https://cdn-api.co-vin.in/api/v2/auth/validateMobileOtp', json=data,
-                             headers=public_request_header())
-    if response.status_code != 200:
-        raise ValueError(f"Invalid response while validating OTP: {response.json()}")
-
-    global token
-    token = response.json()["token"]
-    print(f"Generated token: {token}")
-
-
-def get_beneficiary_reference_id():
-    response = requests.get(
-        "https://cdn-api.co-vin.in/api/v2/appointment/beneficiaries", headers=authenticated_request_header())
-
-    if response.status_code == 401:
-        update_token()
-        response = requests.get(
-            "https://cdn-api.co-vin.in/api/v2/appointment/beneficiaries", headers=authenticated_request_header())
-
-    if response.status_code != 200:
-        raise ValueError(f"Invalid response while getting beneficiaries: {response.json()}")
-
-    names = []
-    for beneficiary in response.json()["beneficiaries"]:
-        if NAME == beneficiary["name"]:
-            return beneficiary["beneficiary_reference_id"]
-        names.append(beneficiary["name"])
-
-    raise ValueError(f"Input beneficiary name does not match the registered beneficiaries: {names}")
-
-
-def check_and_book_appointment(beneficiary_reference_id, calendar):
-    for center in calendar["centers"]:
-
-        if center["fee_type"] != "Free":
-            continue
-
-        center_id = center['center_id']
-
-        for session in center["sessions"]:
-
-            if session["available_capacity"] > 0 and session["min_age_limit"] == MIN_AGE_LIMIT:
-
-                print(f"Attempting booking in {center['name']}")
-                session_id = session["session_id"]
-
-                for slot in session["slots"]:
-                    booking_request = {
-                        'beneficiaries': [beneficiary_reference_id],
-                        'dose': DOSE,
-                        'center_id': center_id,
-                        'session_id': session_id,
-                        'slot': slot
-                    }
-                    booked = book_with_retry(booking_request)
-                    if booked:
-                        print(f"Appointment booked for {slot}")
-                        display_message(f"Appointment booked for {slot}")
-                        return True
-
-    return False
-
-
-def book_with_retry(booking_request):
-    response = requests.post("https://cdn-api.co-vin.in/api/v2/appointment/schedule",
-                             headers=authenticated_request_header(),
-                             json=booking_request)
-    if response.status_code == 401:
-        print("Token Expired")
-        update_token()
-        response = requests.post("https://cdn-api.co-vin.in/api/v2/appointment/schedule",
-                                 headers=authenticated_request_header(),
+        response = requests.post(self.__base_url, headers=Configuration.Configuration.request_header(),
                                  json=booking_request)
+        if response.status_code == 401:
+            print("Token Expired")
+            Configuration.update_token()
+            response = requests.post(self.__base_url, headers=Configuration.request_header(), json=booking_request)
 
-    booked = response.status_code == 200
-    if not booked:
-        print(f"Could not book.. Response: {response.json()}")
+        booked = response.status_code == 200
+        if not booked:
+            print(f"Could not book.. Response: {response.json()}")
 
-    return booked
+        return booked
+
+
+class CalendarFetcher:
+    __base_url = None
+
+    class At:
+        PIN_CODE_LEVEL = 'pin_code_as_input'
+        DISTRICT_LEVEL = 'district_as_input'
+
+    def get_url(self, data_fetching_mode):
+        url_fetcher = {
+            CalendarFetcher.At.PINCODE: f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin",
+            CalendarFetcher.At.DISTRICT_LEVEL: f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin"
+        }
+        self.__base_url = url_fetcher[data_fetching_mode]
+
+        params_fetcher = {
+            CalendarFetcher.At.PINCODE: f"?pincode={PIN_CODE_LEVEL}&date={date.today().strftime('%d-%m-%Y')}",
+            CalendarFetcher.At.DISTRICT_LEVEL: ""
+        }
+        query_params = params_fetcher[data_fetching_mode]
+        return f"{self.__base_url}?{query_params}"
+
+    def get_calender(self, data_fetching_mode: str):
+        response = requests.get(self.get_url(data_fetching_mode))
+
+        if response.status_code != 200:
+            print(
+                f"{datetime.datetime.now()} Invalid response code while finding by pincode: {response.status_code}. "
+                f"Retrying in {Configuration.TIME_PERIOD} seconds")
+            time.sleep(Configuration.TIME_PERIOD)
+            return self.get_calender(data_fetching_mode)
+
+        return response.json()
+
+
+class AppointmentSeeker:
+    __base_url = "https://cdn-api.co-vin.in/api/v2/appointment/beneficiaries"
+
+    def get_beneficiary_reference_id(self, ):
+        response = requests.get(self.__base_url, headers=Configuration.request_header())
+
+        if response.status_code == 401:
+            Configuration.update_token()
+            response = requests.get(self.__base_url, headers=Configuration.request_header())
+
+        if response.status_code != 200:
+            raise ValueError(f"Invalid response while getting beneficiaries: {response.json()}")
+
+        names = []
+        for beneficiary in response.json()["beneficiaries"]:
+            if NAME == beneficiary["name"]:
+                return beneficiary["beneficiary_reference_id"]
+            names.append(beneficiary["name"])
+
+        raise ValueError(f"Input beneficiary name does not match the registered beneficiaries: {names}")
+
+    def execute_internal(self, data_fetching_mode: str):
+        beneficiary_reference_id = self.get_beneficiary_reference_id()
+        print(f"Beneficiary id is {beneficiary_reference_id}")
+
+        calender_details = CalendarFetcher()
+        calendar = calender_details.get_calender(data_fetching_mode)
+        if self.check_and_book_appointment(beneficiary_reference_id, calendar):
+            return
+
+    def check_and_book_appointment(self, beneficiary_reference_id, calendar):
+        pass
+
+
+class DummySeeker(AppointmentSeeker):
+
+    def execute(self):
+        pass
+
+
+class PinCodeSpecificAppointmentSeeker(AppointmentSeeker):
+
+    def check_and_book_appointment(self, beneficiary_reference_id, calendar):
+        slot_retry_count = 0
+        center_retry_count = 0
+
+        bookie = Booking()
+
+        for center in calendar["centers"]:
+
+            if center["fee_type"] != "Free":
+                continue
+
+            center_retry_count += 1
+            center_id = center['center_id']
+
+            if center_retry_count >= Configuration.MAX_CENTER_RETRY_COUNT:
+                print("I am done exploring centers for today, arrrghhh!!")
+                return False
+
+            print(f"Center details: {pprint(center)}")
+            for session in center["sessions"]:
+
+                if session["available_capacity"] > 0 and session["min_age_limit"] == MIN_AGE_LIMIT:
+
+                    session_id = session["session_id"]
+                    for slot in session["slots"]:
+                        booking_request = {
+                            'beneficiaries': [beneficiary_reference_id],
+                            'dose': DOSE,
+                            'center_id': center_id,
+                            'session_id': session_id,
+                            'slot': slot
+                        }
+
+                        slot_retry_count += 1
+                        booked = bookie.book_with_retry(booking_request)
+                        if booked:
+                            print(f"Appointment booked for {slot}")
+                            display_message(f"Appointment booked for {slot}")
+                            return True
+
+                        if slot_retry_count >= Configuration.MAX_SLOT_RETRY_COUNT:
+                            print("Enough for today, eh!?")
+                            return False
+
+        return False
+
+    def execute(self):
+        self.execute_internal(CalendarFetcher.At.PINCODE)
+
+
+class DistrictSpecificAppointmentSeeker(AppointmentSeeker):
+
+    def execute(self):
+        self.execute_internal(CalendarFetcher.At.DISTRICT_LEVEL)
+
+
+class Configuration:
+    MAX_SLOT_RETRY_COUNT = 20
+    MAX_CENTER_RETRY_COUNT = 100
+
+    WANNA_BOOK_APPOINTMENT = False
+    TIME_PERIOD = 10  # Check for slots every N seconds, recommended = 10, do not update
+
+    EXPLORER_COVERAGE = CalendarFetcher.At.DISTRICT_LEVEL
+
+    @staticmethod
+    def request_header():
+        return {"Authorization": f"Bearer {token}"}
+
+    @staticmethod
+    def update_token():
+        data = {
+            "mobile": NUMBER,
+            "secret": "U2FsdGVkX1/3I5UgN1RozGJtexc1kfsaCKPadSux9LY+cVUADlIDuKn0wCN+Y8iB4ceu6gFxNQ5cCfjm1BsmRQ=="
+        }
+
+        response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data)
+        if response.status_code != 200:
+            raise ValueError(f"Invalid response while requesting OTP: {response.json()}")
+
+        txn_id = response.json()["txnId"]
+        display_message("Enter OTP in terminal")
+        otp = input("Enter OTP: ")
+
+        data = {"otp": sha256(str(otp).encode('utf-8')).hexdigest(), "txnId": txn_id}
+        print(f"Validating OTP..")
+
+        response = requests.post(url='https://cdn-api.co-vin.in/api/v2/auth/validateMobileOtp', json=data)
+        if response.status_code != 200:
+            raise ValueError(f"Invalid response while validating OTP: {response.json()}")
+
+        global token
+        token = response.json()["token"]
+        print(f"Generated token: {token}")
 
 
 def run():
-    update_token()
+    Configuration.update_token()
+    explorer_map = {
+        CalendarFetcher.At.PINCODE: PinCodeSpecificAppointmentSeeker,
+        CalendarFetcher.At.DISTRICT_LEVEL: DistrictSpecificAppointmentSeeker,
+    }
 
-    beneficiary_reference_id = get_beneficiary_reference_id()
-    print(f"Beneficiary id is {beneficiary_reference_id}")
-
+    finder_klaaz = explorer_map.get(Configuration.EXPLORER_COVERAGE, DummySeeker)
+    finder = finder_klaaz()
     while True:
-        calendar = get_calendar()
-        if check_and_book_appointment(beneficiary_reference_id, calendar):
-            return
-        print(f"{datetime.datetime.now()} Retrying in {TIME_PERIOD} seconds")
-        time.sleep(TIME_PERIOD)
+        finder.execute()
+        print(f"{datetime.datetime.now()} Retrying in {Configuration.TIME_PERIOD} seconds")
+        time.sleep(Configuration.TIME_PERIOD)
 
 
 if __name__ == '__main__':
@@ -166,6 +238,5 @@ if __name__ == '__main__':
     TIME_PERIOD = 10  # Check for slots every N seconds, recommended = 10, do not update
 
     token = ""  # Advanced use only, ignore this
-    USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:77.0) Gecko/20190101 Firefox/77.0"
 
     run()
