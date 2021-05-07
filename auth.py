@@ -23,8 +23,8 @@ class DataContext:
     state_name = None
     district_name = None
 
-    district_id = None
     state_id = None
+    district_ids = None
 
     age_category = None
     scouring_mechanism = ScourAt.PIN_CODE_LEVEL
@@ -44,18 +44,20 @@ class DataContext:
         self.age_category = age_category
         self.wanna_book_appointment = wanna_book_appointment
 
+        self.district_ids = list()
+
     def get_token(self):
         return self.__token
 
     def set_token(self, token):
         self.__token = token
 
-    def set_district_id(self, district_id):
-        self.district_id = district_id
+    def append_district_id(self, district_id):
+        self.district_ids.append(district_id)
 
     def reset_district_details(self):
         self.state_id = None
-        self.district_id = None
+        self.district_ids = list()
 
     def set_state_id(self, state_id):
         self.state_id = state_id
@@ -76,7 +78,7 @@ class DataContext:
         self.__exploring_counter = 0
 
     def get_area_ids(self):
-        return self.district_id if self.scouring_mechanism == ScourAt.DISTRICT_LEVEL else self.pin_code
+        return self.district_ids if self.scouring_mechanism == ScourAt.DISTRICT_LEVEL else [self.pin_code]
 
 
 class Configuration:

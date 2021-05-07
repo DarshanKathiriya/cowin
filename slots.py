@@ -26,44 +26,48 @@ class CalendarFetcher:
         self.__base_url = url_fetcher[data_fetching_mode]
 
         params_fetcher = {
-            ScourAt.PIN_CODE_LEVEL: f"?pincode={for_area_id}",
-            ScourAt.DISTRICT_LEVEL: f"?district_id={for_area_id}"
+            ScourAt.PIN_CODE_LEVEL: f"pincode={for_area_id}",
+            ScourAt.DISTRICT_LEVEL: f"district_ids={for_area_id}"
         }
         query_params = params_fetcher[data_fetching_mode]
         return f"{self.__base_url}?{query_params}&date={date.today().strftime('%d-%m-%Y')}"
 
-    def get_calendar_url(self):
+    def get_calendar_urls(self):
         data_fetching_mode = self.__data_context.scouring_mechanism
         if data_fetching_mode == ScourAt.DISTRICT_LEVEL:
             self.fill_district_details()
 
-        for_area_id = self.__data_context.get_area_ids()
-        return self.build_calendar_url(for_area_id)
+        for_area_ids = self.__data_context.get_area_ids()
+        return [self.build_calendar_url(area_id) for area_id in for_area_ids]
 
     def get_calender(self):
         if self.__data_context.get_scouring_counter() >= Configuration.MAX_AREA_EXPLORING_RETRIES:
             self.change_scouring_mechanism()
 
-        response = requests.get(self.get_calendar_url(), headers=Configuration.public_request_header(self.__data_context))
+        responses = [requests.get(a_url, headers=Configuration.public_request_header(self.__data_context))
+                     for a_url in self.get_calendar_urls()]
+        response_status_codes = [response.status_code for response in responses]
 
-        if response.status_code != 200:
+        if 200 not in response_status_codes:
             self.__data_context.increase_scouring_counter()
             print(f"{datetime.now()} Invalid response code while finding details using "
-                  f"{self.__data_context.scouring_mechanism.replace('_', ' ')}: {response.status_code}. "
+                  f"{self.__data_context.scouring_mechanism.replace('_', ' ')}: {max(response_status_codes)}. "
                   f"Retrying in {Configuration.TIME_PERIOD} seconds")
             time.sleep(Configuration.TIME_PERIOD)
             return self.get_calender()
         else:
             self.__data_context.reset_scouring_counter()
 
-        return response.json()
+        all_centers = list()
+        [all_centers.extend(response.json()['centers']) for response in responses]
+        return {'centers': all_centers}
 
     def change_scouring_mechanism(self):
+        self.__data_context.reset_scouring_counter()
         if self.__data_context.scouring_mechanism == ScourAt.PIN_CODE_LEVEL:
             self.__data_context.set_scouring_mechanism(ScourAt.DISTRICT_LEVEL)
         else:
             self.__data_context.set_scouring_mechanism(ScourAt.PIN_CODE_LEVEL)
-        self.__data_context.reset_scouring_counter()
 
     def fill_district_details(self):
         self.__data_context.reset_district_details()
@@ -77,7 +81,7 @@ class CalendarFetcher:
             district_details = response.json()['districts']
             for district_object in district_details:
                 if self.__data_context.district_name in str(district_object['district_name']).lower():
-                    self.__data_context.set_district_id(district_object['district_id'])
+                    self.__data_context.append_district_id(district_object['district_id'])
 
     def fill_state_details(self):
         state_details_url = f"{Configuration.SERVER_BASE_URL}/admin/location/states"
@@ -125,26 +129,6 @@ class AppointmentSeeker:
         raise ValueError(f"Input beneficiary name does not match the registered beneficiaries: {names}")
 
     def check_and_book_appointment(self, beneficiary_reference_id, calendar):
-        raise NotImplemented('Implement me')
-
-    def execute(self):
-        beneficiary_reference_id = self.get_beneficiary_reference_id()
-
-        calender_details = CalendarFetcher(self.__data_context)
-        calendar = calender_details.get_calender()
-        if self.check_and_book_appointment(beneficiary_reference_id, calendar):
-            return
-
-
-class DummySeeker(AppointmentSeeker):
-
-    def execute(self):
-        return True
-
-
-class PinCodeSpecificAppointmentSeeker(AppointmentSeeker):
-
-    def check_and_book_appointment(self, beneficiary_reference_id, calendar):
         slot_retry_count = 0
         center_retry_count = 0
 
@@ -190,24 +174,15 @@ class PinCodeSpecificAppointmentSeeker(AppointmentSeeker):
 
         return False
 
+    def execute_internal(self):
+        beneficiary_reference_id = self.get_beneficiary_reference_id()
 
-class DistrictSpecificAppointmentSeeker(AppointmentSeeker):
+        calender_details = CalendarFetcher(self.__data_context)
+        calendar = calender_details.get_calender()
+        if self.check_and_book_appointment(beneficiary_reference_id, calendar):
+            return
 
-    def check_and_book_appointment(self, beneficiary_reference_id, calendar):
-        pass
-
-
-class AppointmentSeekerFactory:
-
-    def execute(self, data_context: DataContext):
-        if data_context.wanna_book_appointment:
-            Configuration.update_token(data_context)
-
-        explorer_map = {
-            ScourAt.PIN_CODE_LEVEL: PinCodeSpecificAppointmentSeeker,
-            ScourAt.DISTRICT_LEVEL: DistrictSpecificAppointmentSeeker,
-        }
-
-        finder_klaaz = explorer_map.get(data_context.scouring_mechanism, DummySeeker)
-        finder = finder_klaaz(data_context)
-        return finder.execute()
+    def execute(self):
+        if self.__data_context.wanna_book_appointment:
+            Configuration.update_token(self.__data_context)
+        return self.execute_internal()
