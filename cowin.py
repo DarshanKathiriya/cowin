@@ -4,6 +4,8 @@ from datetime import datetime
 from auth import Configuration, DataContext, ScourAt
 from slots import AppointmentSeeker
 
+WANNA_BOOK_APPOINTMENT = False
+
 
 def run():
     data_context = DataContext(phone_no=NUMBER,
@@ -14,7 +16,7 @@ def run():
                                pin_code=PINCODE,
                                age_category=MIN_AGE_LIMIT,
                                wanna_book_appointment=WANNA_BOOK_APPOINTMENT)
-    data_context.set_scouring_mechanism(ScourAt.DISTRICT_LEVEL)
+    data_context.set_scouring_mechanism(ScourAt.PIN_CODE_LEVEL)
 
     while True:
 
@@ -39,6 +41,6 @@ if __name__ == '__main__':
     TIME_PERIOD = 10  # Check for slots every N seconds, recommended = 10, do not update
 
     # Uncomment the line below if want to book and not only explore
-    WANNA_BOOK_APPOINTMENT = False
+    # WANNA_BOOK_APPOINTMENT = True
 
     run()
