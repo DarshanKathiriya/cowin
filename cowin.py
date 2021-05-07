@@ -27,12 +27,13 @@ class Booking:
         if not self.__wanna_book:
             return
 
-        response = requests.post(self.__base_url, headers=Configuration.Configuration.request_header(),
+        response = requests.post(self.__base_url, headers=Configuration.authenticated_request_header(),
                                  json=booking_request)
         if response.status_code == 401:
             print("Token Expired")
             Configuration.update_token()
-            response = requests.post(self.__base_url, headers=Configuration.request_header(), json=booking_request)
+            response = requests.post(self.__base_url, headers=Configuration.authenticated_request_header(),
+                                     json=booking_request)
 
         booked = response.status_code == 200
         if not booked:
@@ -50,20 +51,20 @@ class CalendarFetcher:
 
     def get_url(self, data_fetching_mode):
         url_fetcher = {
-            CalendarFetcher.At.PINCODE: f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin",
+            CalendarFetcher.At.PIN_CODE_LEVEL: f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin",
             CalendarFetcher.At.DISTRICT_LEVEL: f"https://cdn-api.co-vin.in/api/v2/appointment/sessions/calendarByPin"
         }
         self.__base_url = url_fetcher[data_fetching_mode]
 
         params_fetcher = {
-            CalendarFetcher.At.PINCODE: f"?pincode={PIN_CODE_LEVEL}&date={date.today().strftime('%d-%m-%Y')}",
+            CalendarFetcher.At.PIN_CODE_LEVEL: f"?pincode={PINCODE}&date={date.today().strftime('%d-%m-%Y')}",
             CalendarFetcher.At.DISTRICT_LEVEL: ""
         }
         query_params = params_fetcher[data_fetching_mode]
         return f"{self.__base_url}?{query_params}"
 
     def get_calender(self, data_fetching_mode: str):
-        response = requests.get(self.get_url(data_fetching_mode))
+        response = requests.get(self.get_url(data_fetching_mode), headers=Configuration.public_request_header())
 
         if response.status_code != 200:
             print(
@@ -79,11 +80,11 @@ class AppointmentSeeker:
     __base_url = "https://cdn-api.co-vin.in/api/v2/appointment/beneficiaries"
 
     def get_beneficiary_reference_id(self, ):
-        response = requests.get(self.__base_url, headers=Configuration.request_header())
+        response = requests.get(self.__base_url, headers=Configuration.authenticated_request_header())
 
         if response.status_code == 401:
             Configuration.update_token()
-            response = requests.get(self.__base_url, headers=Configuration.request_header())
+            response = requests.get(self.__base_url, headers=Configuration.authenticated_request_header())
 
         if response.status_code != 200:
             raise ValueError(f"Invalid response while getting beneficiaries: {response.json()}")
@@ -164,7 +165,7 @@ class PinCodeSpecificAppointmentSeeker(AppointmentSeeker):
         return False
 
     def execute(self):
-        self.execute_internal(CalendarFetcher.At.PINCODE)
+        self.execute_internal(CalendarFetcher.At.PIN_CODE_LEVEL)
 
 
 class DistrictSpecificAppointmentSeeker(AppointmentSeeker):
@@ -183,17 +184,14 @@ class Configuration:
     EXPLORER_COVERAGE = CalendarFetcher.At.DISTRICT_LEVEL
 
     @staticmethod
-    def request_header():
-        return {"Authorization": f"Bearer {token}"}
-
-    @staticmethod
     def update_token():
         data = {
             "mobile": NUMBER,
             "secret": "U2FsdGVkX1/3I5UgN1RozGJtexc1kfsaCKPadSux9LY+cVUADlIDuKn0wCN+Y8iB4ceu6gFxNQ5cCfjm1BsmRQ=="
         }
 
-        response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data)
+        response = requests.post("https://cdn-api.co-vin.in/api/v2/auth/generateMobileOTP", json=data,
+                                 headers=Configuration.public_request_header())
         if response.status_code != 200:
             raise ValueError(f"Invalid response while requesting OTP: {response.json()}")
 
@@ -204,7 +202,8 @@ class Configuration:
         data = {"otp": sha256(str(otp).encode('utf-8')).hexdigest(), "txnId": txn_id}
         print(f"Validating OTP..")
 
-        response = requests.post(url='https://cdn-api.co-vin.in/api/v2/auth/validateMobileOtp', json=data)
+        response = requests.post(url='https://cdn-api.co-vin.in/api/v2/auth/validateMobileOtp', json=data,
+                                 headers=Configuration.public_request_header())
         if response.status_code != 200:
             raise ValueError(f"Invalid response while validating OTP: {response.json()}")
 
@@ -212,11 +211,24 @@ class Configuration:
         token = response.json()["token"]
         print(f"Generated token: {token}")
 
+    @staticmethod
+    def public_request_header():
+        return {
+            "user-agent": USER_AGENT
+        }
+
+    @staticmethod
+    def authenticated_request_header():
+        return {
+            "Authorization": f"Bearer {token}",
+            "user-agent": USER_AGENT
+        }
+
 
 def run():
     Configuration.update_token()
     explorer_map = {
-        CalendarFetcher.At.PINCODE: PinCodeSpecificAppointmentSeeker,
+        CalendarFetcher.At.PIN_CODE_LEVEL: PinCodeSpecificAppointmentSeeker,
         CalendarFetcher.At.DISTRICT_LEVEL: DistrictSpecificAppointmentSeeker,
     }
 
@@ -237,6 +249,10 @@ if __name__ == '__main__':
 
     TIME_PERIOD = 10  # Check for slots every N seconds, recommended = 10, do not update
 
+    # Uncomment the line below if want to book and not only explore
+    # Configuration.WANNA_BOOK_APPOINTMENT = True
+
     token = ""  # Advanced use only, ignore this
+    USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:77.0) Gecko/20190101 Firefox/77.0"
 
     run()
