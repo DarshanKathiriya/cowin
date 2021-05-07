@@ -35,7 +35,7 @@ class DataContext:
     def __init__(self, phone_no, name, dose_no, state_name, district_name, pin_code, age_category,
                  wanna_book_appointment=False) -> None:
         super().__init__()
-        self.phone_no = phone_no
+        self.phone_no = int(phone_no)
         self.name = name
         self.dose_no = dose_no
         self.state_name = str(state_name).lower()
@@ -99,7 +99,7 @@ class Configuration:
         }
 
         response = requests.post(f"{Configuration.SERVER_BASE_URL}/auth/generateMobileOTP", json=data,
-                                 headers=Configuration.public_request_header())
+                                 headers=Configuration.public_request_header(context))
         if response.status_code != 200:
             raise ValueError(f"Invalid response while requesting OTP: {response.json()}")
 
@@ -111,7 +111,7 @@ class Configuration:
         print(f"Validating OTP..")
 
         response = requests.post(url=f"{Configuration.SERVER_BASE_URL}/auth/validateMobileOtp", json=data,
-                                 headers=Configuration.public_request_header())
+                                 headers=Configuration.public_request_header(context))
         if response.status_code != 200:
             raise ValueError(f"Invalid response while validating OTP: {response.json()}")
 
